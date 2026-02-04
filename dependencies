@@ -9,3 +9,4 @@ uv pip install git+https://github.com/huggingface/transformers
 python -c "from transformers import pipeline; print(pipeline('sentiment-analysis')('hugging face is the best'))"
 pip install --upgrade huggingface_hub
 uv pip install -v --no-build-isolation -U git+https://github.com/facebookresearch/xformers.git@main#egg=xformers
+pip install pillow 

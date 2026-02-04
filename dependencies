@@ -1,4 +1,11 @@
-pip install pandas numpy python
-conda install --yes -c pytorch pytorch torchvision
+pip install pandas numpy python torch torchvision
 pip install ftfy regex tqdm
 pip install git+https://github.com/openai/CLIP.git
+git clone https://github.com/openai/CLIP.git
+cd CLIP
+pip install -r requirements.txt
+python -c "import clip; print('CLIP is installed!')"
+uv pip install git+https://github.com/huggingface/transformers
+python -c "from transformers import pipeline; print(pipeline('sentiment-analysis')('hugging face is the best'))"
+pip install --upgrade huggingface_hub
+uv pip install -v --no-build-isolation -U git+https://github.com/facebookresearch/xformers.git@main#egg=xformers

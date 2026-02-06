@@ -11,11 +11,8 @@ parser.add_argument('--output_dir', default='data/split_images',
                     help="Location of new data")
 
 def get_class_name(filename):
-    # print(filename)
-    name = os.path.splitext(filename)[0]    #remove .jpg
-    name = name.rsplit("_", 1)[0]   #remove number
-    name = name.rsplit("\\", 1)[1]  #remove directory
-    return name
+    name = os.path.basename(filename)
+    return name.rsplit("_", 1)[0]
 
 def split_by_class(filename, output_dir):
     image = Image.open(filename)
@@ -23,7 +20,6 @@ def split_by_class(filename, output_dir):
     output_path = os.path.join(output_dir, class_name)
     if not os.path.exists(output_path):
             os.mkdir(output_path)
-    # print(os.path.join(output_path, os.path.basename(filename)))
     image.save(os.path.join(output_path, os.path.basename(filename)))
 
 if __name__ == '__main__':

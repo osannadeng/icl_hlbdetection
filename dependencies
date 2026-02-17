@@ -10,3 +10,6 @@ python -c "from transformers import pipeline; print(pipeline('sentiment-analysis
 pip install --upgrade huggingface_hub
 uv pip install -v --no-build-isolation -U git+https://github.com/facebookresearch/xformers.git@main#egg=xformers
 pip install pillow 
+pip install hf_xet
+pip install opencv-python
+pip install wandb

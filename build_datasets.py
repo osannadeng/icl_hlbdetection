@@ -38,17 +38,24 @@ if __name__ == '__main__':
     test_filenames = os.listdir(test_data_dir)
     test_filenames = [os.path.join(test_data_dir, f) for f in test_filenames if f.endswith('.jpg')]
 
-    # Split the images in 'train_signs' into 80% train and 20% dev
     # Make sure to always shuffle with a fixed seed so that the split is reproducible
     random.seed(230)
     filenames.sort()
     random.shuffle(filenames)
 
+    # 80/20 split for training set and test set
     split = int(0.8 * len(filenames))
-    train_filenames = filenames[:split]
+    temp_train_filenames = filenames[:split]
     test_filenames = filenames[split:]
 
+    # 80/20 split on training set for training and validation set
+    val_split = int(0.8 * len(temp_train_filenames))
+    train_filenames = temp_train_filenames[:val_split]
+    val_filenames = temp_train_filenames[val_split:]
+
+
     filenames = {'train': train_filenames,
+                 'val': val_filenames,
                  'test': test_filenames}
 
     if not os.path.exists(args.output_dir):
@@ -57,7 +64,7 @@ if __name__ == '__main__':
         print("Warning: output dir {} already exists".format(args.output_dir))
 
     # Preprocess train, dev and test
-    for split in ['train', 'test']:
+    for split in ['train', 'val', 'test']:
         output_dir_split = os.path.join(args.output_dir, split)
         if not os.path.exists(output_dir_split):
             os.mkdir(output_dir_split)

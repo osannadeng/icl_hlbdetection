@@ -18,6 +18,9 @@ ds_path = os.path.join("data", "CitrusUAT_dataset")
 imgs_path = os.path.join(ds_path, "Images")
 masks_path = os.path.join(ds_path, "Masks")
 
+if not os.path.exists(os.path.join(ds_path, "preprocessed")):
+    os.mkdir(os.path.join(ds_path, "preprocessed"))
+
 for root, dirs, imgs in os.walk(imgs_path):
     for img in imgs:
         mask = get_mask_name(img)

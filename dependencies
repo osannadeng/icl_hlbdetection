@@ -13,3 +13,4 @@ pip install pillow
 pip install hf_xet
 pip install opencv-python
 pip install wandb
+pip install git+https://github.com/huggingface/transformers accelerate

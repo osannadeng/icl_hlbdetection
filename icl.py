@@ -59,16 +59,16 @@ random.seed(8)
 random.shuffle(test_data)
 
 prompt_0 = ("Label this leaf image as being infected with Huanglongbing disease or healthy. " 
-                "Use the labels 'HLB' and 'Healthy'.")
+                "Strictly use the labels 'HLB' and 'Healthy'. Provide no explanation and do not address any nuance.")
 
 prompt_no_context = ("Label this leaf image as being infected with Huanglongbing disease or healthy. " 
-                    "Use the labels 'HLB' and 'Healthy'. "
+                    "Strictly use the labels 'HLB' and 'Healthy'. "
                     "Given the following example(s), label the last image to the best of your ability.")
 
 prompt_context = ("Huanglongbing disease is a disease of citrus trees distinguished by asymmetrical yellowing "
                 "of the veins and adjacent tissues. Leaves contain splotchy mottling. "
                 "Label this leaf image as being infected with Huanglongbing disease or healthy. " 
-                "Use the labels “HLB” and “Healthy”. Given the following example(s), label the last image to the best of your ability.")
+                "Strictly use the labels “HLB” and “Healthy”. Given the following example(s), label the last image to the best of your ability.")
 
 # parse from csv
 def parse_nums(value):
@@ -124,6 +124,7 @@ for p_type, prompt in [("zero-shot", prompt_0), ("no_context", prompt_no_context
             print(f"        run {run + 1}")
             if p_type == "zero-shot":
                 icl_pairs = []
+                fname = f'{p_type}.csv'
             else:
                 if frac >= 0.05:
                     seed = seeds['Seed'].iloc[i - offset][run]
@@ -131,8 +132,9 @@ for p_type, prompt in [("zero-shot", prompt_0), ("no_context", prompt_no_context
                 else:
                     seed = rng.randint(0, 2**32 - 1)
                 icl_pairs = subset(train_data, frac, seed)
+                fname = f'{p_type}_{frac}.csv'
             
-            with open(os.path.join('results', f'{p_type}_{frac}.txt'), 'w') as f:
+            with open(os.path.join('results', fname), 'w') as f:
                 for img_path, label in test_data:
                     messages = generate_message(img_path, prompt, icl_pairs)
 
@@ -161,6 +163,7 @@ for p_type, prompt in [("zero-shot", prompt_0), ("no_context", prompt_no_context
                     gc.collect()
                     
                     # break # DELETE
+        if p_type == "zero-shot": break
                 
         if frac < 0.05:
             new_seeds.append({"Percentage": f"{frac * 100}%", "Seed": curr_seeds})

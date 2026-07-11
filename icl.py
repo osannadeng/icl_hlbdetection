@@ -10,6 +10,7 @@ from collections import defaultdict
 from torch.utils.data import Subset
 import random
 from transformers import AutoProcessor, AutoModelForMultimodalLM
+from sklearn.metrics import f1_score
 
 def load_image(path):
     return Image.open(path).convert("RGB")
@@ -101,7 +102,9 @@ def subset(dataset, frac, seed=None):
     
     return Subset(dataset, subset_i)
 
-fracs = [0.005, 0.01, 0.02, 0.03, 0.04, 0.05, 0.1, 0.2, 0.3, 0.4] # RESOURCE LIMIT: 40%
+# fracs = [0.005, 0.01, 0.02, 0.03, 0.04, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0] # RESOURCE LIMIT: 40%
+fracs = [0.005, 0.01]
+
 offset = 5 # new percentages (not in fine-tuning)
 
 os.makedirs('results', exist_ok=True)
@@ -111,16 +114,24 @@ new_seeds = []
 
 # correct = 0
 
-for p_type, prompt in [("zero-shot", prompt_0), ("no_context", prompt_no_context), ("context", prompt_context)]: 
-    if p_type != "context": continue
+results = []
+
+for p_type, prompt in [("zero-shot", prompt_0), ("no-context", prompt_no_context), ("context", prompt_context)]: 
+    if p_type != "zero-shot": continue
     print(f"{p_type}...")
+
     for i in range(len(fracs)):
         frac = fracs[i]
+        # if frac < 0.8:
+        #     continue
         print(f"    {frac * 100}%...")
 
         curr_seeds = []
+        curr_res = []
 
         for run in range(1):
+            y_pred = []
+            y_actual = []
             print(f"        run {run + 1}")
             if p_type == "zero-shot":
                 icl_pairs = []
@@ -135,6 +146,7 @@ for p_type, prompt in [("zero-shot", prompt_0), ("no_context", prompt_no_context
                 fname = f'{p_type}_{frac}.csv'
             
             with open(os.path.join('results', fname), 'w') as f:
+                count = 0
                 for img_path, label in test_data:
                     messages = generate_message(img_path, prompt, icl_pairs)
 
@@ -149,7 +161,7 @@ for p_type, prompt in [("zero-shot", prompt_0), ("no_context", prompt_no_context
 
                     outputs = model.generate(**inputs, max_new_tokens=16)
                     response = processor.decode(outputs[0][input_len:], skip_special_tokens=False)
-
+                    # print(response)
                     parsed = processor.parse_response(response)
                     
                     pred = parsed['content']
@@ -157,17 +169,33 @@ for p_type, prompt in [("zero-shot", prompt_0), ("no_context", prompt_no_context
                     print(f"Image: {img_path}, Prediction: {pred}, Result: {label}")
                     f.write(f"Image: {img_path}, Prediction: {pred}, Result: {label}\n")
 
+                    y_pred.append(pred)
+                    y_actual.append(label)
+
                     # if pred == label: correct += 1 # DEBUG -> fix parse for zero-shot check
 
                     del messages, inputs, outputs, response
                     gc.collect()
                     
+                    count += 1
+                    if count > 1: break
                     # break # DELETE
-        if p_type == "zero-shot": break
-                
+            print(y_actual, y_pred)
+            curr_res.append(f1_score(y_actual, y_pred, pos_label='HLB'))
+
+        if p_type == "zero-shot": 
+            results.append({"Run": p_type, "F1 Score": curr_res})
+            break
+        else:
+            results.append({"Run": f"{p_type} {frac*100}%", "F1 Score": curr_res})
+
         if frac < 0.05:
             new_seeds.append({"Percentage": f"{frac * 100}%", "Seed": curr_seeds})
 
-df_seeds = pd.DataFrame(new_seeds)
-df_seeds['Seed'] = df_seeds['Seed'].apply(lambda x: f"[{' '.join(map(str, x))}]")
-df_seeds.to_csv('addlrunseeds.csv', index=False)
+# df_seeds = pd.DataFrame(new_seeds)
+# df_seeds['Seed'] = df_seeds['Seed'].apply(lambda x: f"[{' '.join(map(str, x))}]")
+# df_seeds.to_csv('addlrunseeds.csv', index=False)
+
+df = pd.DataFrame(results)
+df['F1 Score'] = df['F1 Score'].apply(lambda x: f"[{' '.join(map(str, x))}]")  # convert list to space separated instead of comma separated
+df.to_csv('iclf1.csv', index=False)

@@ -79,7 +79,6 @@ rand.seed(8)
 
 # subset of test set
 test_data = subset(test_data, 0.25) # 29
-print(len(test_data))
 
 prompt_0 = ("Label this leaf image as being infected with Huanglongbing disease or healthy. " 
                 "Strictly use the labels 'HLB' and 'Healthy'. Provide no explanation and do not address any nuance.")

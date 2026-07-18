@@ -85,12 +85,12 @@ prompt_0 = ("Label this leaf image as being infected with Huanglongbing disease 
 
 prompt_no_context = ("Label this leaf image as being infected with Huanglongbing disease or healthy. " 
                     "Strictly use the labels 'HLB' and 'Healthy'. "
-                    "Given the following example(s), label the last image to the best of your ability.")
+                    "Given the following example(s), label only the last one image to the best of your ability.")
 
 prompt_context = ("Huanglongbing disease is a disease of citrus trees distinguished by asymmetrical yellowing "
                 "of the veins and adjacent tissues. Leaves contain splotchy mottling. "
                 "Label this leaf image as being infected with Huanglongbing disease or healthy. " 
-                "Strictly use the labels “HLB” and “Healthy”. Given the following example(s), label the last image to the best of your ability.")
+                "Strictly use the labels “HLB” and “Healthy”. Given the following example(s), label only the last one image to the best of your ability.")
 
 # parse from csv
 def parse_nums(value):

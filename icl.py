@@ -130,7 +130,7 @@ for p_type, prompt in [("zero-shot", prompt_0), ("no-context", prompt_no_context
             print(f"        run {run + 1}")
             if p_type == "zero-shot":
                 icl_pairs = []
-                fname = f'{p_type}.csv'
+                fname = f'{p_type}_{run}.csv'
             else:
                 if frac >= 0.05:
                     seed = seeds['Seed'].iloc[i - offset][run]
@@ -141,7 +141,7 @@ for p_type, prompt in [("zero-shot", prompt_0), ("no-context", prompt_no_context
                     seed = new_seeds[i]['Seed'][run]
                 icl_pairs = subset(train_data, frac, seed)
                 print(f"    examples: {len(icl_pairs)}")
-                fname = f'{p_type}_{frac}.csv'
+                fname = f'{p_type}_{frac}_{run}.csv'
                         
             with open(os.path.join('results', fname), 'w') as f:
                 for img_path, label in test_data:

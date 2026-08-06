@@ -130,7 +130,7 @@ for p_type, prompt in [("zero-shot", prompt_0), ("no-context", prompt_no_context
             print(f"        run {run + 1}")
             if p_type == "zero-shot":
                 icl_pairs = []
-                fname = f'{p_type}_{run}.csv'
+                fname = f'{p_type}_{run + 1}.csv'
             else:
                 if frac >= 0.05:
                     seed = seeds['Seed'].iloc[i - offset][run]

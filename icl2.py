@@ -92,7 +92,7 @@ val_ds = dinodataset(val_path, dinov3_processor)
 lr = 1e-5
 num_epochs = 9
 training_args = TrainingArguments(
-    output_dir="./results",
+    output_dir="./dinooutput",
     eval_strategy="epoch",
     logging_strategy="epoch",
     per_device_train_batch_size=32,
@@ -144,7 +144,6 @@ for img_path, label in val_data:
     pred, conf = infer(img, device)
     if pred != label:
         conf = 1 - conf
-    print(f"predicted: {pred}, actual: {label}, score: {conf}")
     scored_data.append((conf, img_path, label))
 
 # clean up
@@ -173,7 +172,7 @@ def generate_message(query_img, prompt, icl_pairs=[]):
 # sampling
 def subset(dataset, frac, seed=None):
     strata = defaultdict(list)
-    for idx, (img_path, label) in enumerate(dataset):
+    for idx, (_, label) in enumerate(dataset):
         strata[label].append(idx)
 
     subset_i = []
@@ -217,12 +216,12 @@ prompt_0 = ("Label this leaf image as being infected with Huanglongbing disease 
 
 prompt_no_context = ("Label this leaf image as being infected with Huanglongbing disease or healthy. " 
                     "Strictly use the labels 'HLB' and 'Healthy'. "
-                    "Given the following example(s), label the last image to the best of your ability.")
+                    "Given the following example(s), label only the last one image to the best of your ability.")
 
 prompt_context = ("Huanglongbing disease is a disease of citrus trees distinguished by asymmetrical yellowing "
                 "of the veins and adjacent tissues. Leaves contain splotchy mottling. "
                 "Label this leaf image as being infected with Huanglongbing disease or healthy. " 
-                "Strictly use the labels “HLB” and “Healthy”. Given the following example(s), label the last image to the best of your ability.")
+                "Strictly use the labels “HLB” and “Healthy”. Given the following example(s), label only the last one image to the best of your ability.")
 
 # parse from csv
 def parse_nums(value):
@@ -266,7 +265,6 @@ new_seeds = []
 results = []
 
 scored_data.sort(reverse=True)
-print(scored_data)
 
 for p_type, prompt in [("no-context", prompt_no_context), ("context", prompt_context)]: 
     print(f"{p_type}...")
@@ -290,7 +288,7 @@ for p_type, prompt in [("no-context", prompt_no_context), ("context", prompt_con
                 seed = new_seeds[i]['Seed'][run]
             icl_pairs = subset(scored_data, frac, seed)
             print(f"    examples: {len(icl_pairs)}")
-            fname = f'{p_type}_{frac}.csv'
+            fname = f'{p_type}_{frac}_{run}.csv'
                         
             with open(os.path.join('resultsbest', fname), 'w') as f:
                 for img_path, label in test_data:
@@ -305,12 +303,14 @@ for p_type, prompt in [("no-context", prompt_no_context), ("context", prompt_con
                     ).to(model.device)
                     input_len = inputs["input_ids"].shape[-1]
 
-                    outputs = model.generate(**inputs, max_new_tokens=16)
-                    response = processor.decode(outputs[0][input_len:], skip_special_tokens=False)
+                    while(True):
+                        outputs = model.generate(**inputs, max_new_tokens=16)
+                        response = processor.decode(outputs[0][input_len:], skip_special_tokens=False)
 
-                    parsed = processor.parse_response(response)
-                    
-                    pred = parsed['content']
+                        parsed = processor.parse_response(response)
+                        
+                        pred = parsed['content']
+                        if pred == "HLB" or pred == "Healthy": break
 
                     print(f"Image: {img_path}, Prediction: {pred}, Result: {label}")
                     f.write(f"Image: {img_path}, Prediction: {pred}, Result: {label}\n")
@@ -345,7 +345,6 @@ os.makedirs('resultsworst', exist_ok=True)
 results = []
 
 scored_data.sort()
-print(scored_data)
 
 for p_type, prompt in [("no-context", prompt_no_context), ("context", prompt_context)]: 
     print(f"{p_type}...")
@@ -364,7 +363,7 @@ for p_type, prompt in [("no-context", prompt_no_context), ("context", prompt_con
             seed = new_seeds[i]['Seed'][run]
             icl_pairs = subset(scored_data, frac, seed)
             print(f"    examples: {len(icl_pairs)}")
-            fname = f'{p_type}_{frac}.csv'
+            fname = f'{p_type}_{frac}_{run}.csv'
                         
             with open(os.path.join('resultsworst', fname), 'w') as f:
                 for img_path, label in test_data:

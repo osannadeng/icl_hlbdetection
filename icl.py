@@ -85,12 +85,12 @@ prompt_0 = ("Label this leaf image as being infected with Huanglongbing disease 
 
 prompt_no_context = ("Label this leaf image as being infected with Huanglongbing disease or healthy. " 
                     "Strictly use the labels 'HLB' and 'Healthy'. "
-                    "Given the following example(s), label the last image to the best of your ability.")
+                    "Given the following example(s), label only the last one image to the best of your ability.")
 
 prompt_context = ("Huanglongbing disease is a disease of citrus trees distinguished by asymmetrical yellowing "
                 "of the veins and adjacent tissues. Leaves contain splotchy mottling. "
                 "Label this leaf image as being infected with Huanglongbing disease or healthy. " 
-                "Strictly use the labels “HLB” and “Healthy”. Given the following example(s), label the last image to the best of your ability.")
+                "Strictly use the labels “HLB” and “Healthy”. Given the following example(s), label only the last one image to the best of your ability.")
 
 # parse from csv
 def parse_nums(value):
@@ -156,12 +156,14 @@ for p_type, prompt in [("zero-shot", prompt_0), ("no-context", prompt_no_context
                     ).to(model.device)
                     input_len = inputs["input_ids"].shape[-1]
 
-                    outputs = model.generate(**inputs, max_new_tokens=16)
-                    response = processor.decode(outputs[0][input_len:], skip_special_tokens=False)
+                    while(True):
+                        outputs = model.generate(**inputs, max_new_tokens=16)
+                        response = processor.decode(outputs[0][input_len:], skip_special_tokens=False)
 
-                    parsed = processor.parse_response(response)
-                    
-                    pred = parsed['content']
+                        parsed = processor.parse_response(response, prefix=processor.decode(inputs["input_ids"][0], skip_special_tokens=False))
+                        pred = parsed['content']
+
+                        if pred == "HLB" or pred == "Healthy": break
 
                     print(f"Image: {img_path}, Prediction: {pred}, Result: {label}")
                     f.write(f"Image: {img_path}, Prediction: {pred}, Result: {label}\n")

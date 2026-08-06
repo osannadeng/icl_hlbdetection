@@ -340,8 +340,10 @@ for p_type, prompt in [("no-context", prompt_no_context), ("context", prompt_con
 
                     del messages, inputs, outputs, response
                     gc.collect()
-                    
-            curr_res.append(f1_score(y_actual, y_pred, pos_label='HLB'))
+            
+            f1 = f1_score(y_actual, y_pred, pos_label='HLB')
+            curr_res.append(f1)
+            print(f1)
 
         results.append({"Run": f"{p_type} {frac*100}%", "F1 Score": curr_res})
 
@@ -408,7 +410,9 @@ for p_type, prompt in [("no-context", prompt_no_context), ("context", prompt_con
                     del messages, inputs, outputs, response
                     gc.collect()
 
-            curr_res.append(f1_score(y_actual, y_pred, pos_label='HLB'))
+            f1 = f1_score(y_actual, y_pred, pos_label='HLB')
+            curr_res.append(f1)
+            print(f1)
 
         results.append({"Run": f"{p_type} {frac*100}%", "F1 Score": curr_res})
 

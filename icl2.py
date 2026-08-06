@@ -15,6 +15,7 @@ from torch.utils.data import Subset, random_split
 import transformers
 from transformers import AutoModel, AutoImageProcessor, Trainer, TrainingArguments, TrainerCallback, AutoProcessor, AutoModelForMultimodalLM
 from sklearn.metrics import f1_score
+import pickle
 
 # split 
 train_path = os.path.join("data", "combined_split", "train")
@@ -92,7 +93,7 @@ val_ds = dinodataset(val_path, dinov3_processor)
 lr = 1e-5
 num_epochs = 9
 training_args = TrainingArguments(
-    output_dir="./results",
+    output_dir="./dinooutput",
     eval_strategy="epoch",
     logging_strategy="epoch",
     per_device_train_batch_size=32,
@@ -144,13 +145,22 @@ for img_path, label in val_data:
     pred, conf = infer(img, device)
     if pred != label:
         conf = 1 - conf
-    print(f"predicted: {pred}, actual: {label}, score: {conf}")
     scored_data.append((conf, img_path, label))
+
+print(scored_data)
+
+# save scored data
+with open("scored_val", "wb") as fp:
+    pickle.dump(scored_data, fp)
 
 # clean up
 del dinov3_processor, dinov3_backbone, dinov3, dinov3_trainer
 del train_ds, val_ds
 gc.collect()
+
+# load scored data if not scored this run
+# with open("scored_val", "rb") as fp:
+#     scored_data = pickle.load(fp)
 
 # ================================
 # ICL
@@ -173,7 +183,7 @@ def generate_message(query_img, prompt, icl_pairs=[]):
 # sampling
 def subset(dataset, frac, seed=None):
     strata = defaultdict(list)
-    for idx, (img_path, label) in enumerate(dataset):
+    for idx, (_, label) in enumerate(dataset):
         strata[label].append(idx)
 
     subset_i = []
@@ -217,23 +227,12 @@ prompt_0 = ("Label this leaf image as being infected with Huanglongbing disease 
 
 prompt_no_context = ("Label this leaf image as being infected with Huanglongbing disease or healthy. " 
                     "Strictly use the labels 'HLB' and 'Healthy'. "
-                    "Given the following example(s), label the last image to the best of your ability.")
+                    "Given the following example(s), label only the last one image to the best of your ability.")
 
 prompt_context = ("Huanglongbing disease is a disease of citrus trees distinguished by asymmetrical yellowing "
                 "of the veins and adjacent tissues. Leaves contain splotchy mottling. "
                 "Label this leaf image as being infected with Huanglongbing disease or healthy. " 
-                "Strictly use the labels “HLB” and “Healthy”. Given the following example(s), label the last image to the best of your ability.")
-
-# parse from csv
-def parse_nums(value):
-    nums = re.findall(r"[\d.]+(?:e[+-]?\d+)?", value)
-    return np.array([int(n) for n in nums])
-
-seeds_path = os.path.join('notebooks', 'runseeds.csv')
-seeds = pd.read_csv(seeds_path)
-seeds['Seed'] = seeds['Seed'].apply(
-    lambda x: parse_nums(x) if isinstance(x, str) else x
-)
+                "Strictly use the labels “HLB” and “Healthy”. Given the following example(s), label only the last one image to the best of your ability.")
 
 # sampling, no sort
 def subset(dataset, frac, seed=None):
@@ -253,20 +252,45 @@ def subset(dataset, frac, seed=None):
     
     return Subset(dataset, subset_i)
 
-fracs = [0.02, 0.07, 0.17, 0.35, 0.7, 1] # corresponds to train 1%, 2%, 5%, 10%, 20%, 30% (ish)
+fracs_all = [0.02, 0.07, 0.178, 0.357, 0.7, 1] # corresponds to train 1%, 2%, 5%, 10%, 20%, 30% (ish)
+fracs = fracs_all # modify for segment runs
+
+# generate set seeding per run per type (comment if already created)
+# rng = rand.Random()
+# seeds = []
+# for i in range(len(fracs_all)):
+#     frac = fracs_all[i]
+#     curr_seeds = []
+
+#     for run in range(5):
+#         seed = rng.randint(0, 2**32 - 1)
+#         curr_seeds.append(seed)
+#     seeds.append({"Percentage": f"{frac * 100}%", "Seed": curr_seeds})
+
+# df_seeds = pd.DataFrame(seeds)
+# df_seeds['Seed'] = df_seeds['Seed'].apply(lambda x: f"[{' '.join(map(str, x))}]")
+# df_seeds.to_csv('runseedsbw.csv', index=False)
+
+# parse seeds from csv (comment if generated in current run)
+def parse_nums(value):
+    nums = re.findall(r"[\d.]+(?:e[+-]?\d+)?", value)
+    return np.array([int(n) for n in nums])
+
+seeds_path = os.path.join('runseedsbw.csv')
+seeds = pd.read_csv(seeds_path)
+seeds['Seed'] = seeds['Seed'].apply(
+    lambda x: parse_nums(x) if isinstance(x, str) else x
+)
 
 # ================================
-# SAMPLE BEST EXAMPLES
+# SAMPLE BEST (EASIEST) EXAMPLES
 # ================================
 
 os.makedirs('resultsbest', exist_ok=True)
 
-rng = rand.Random()
-new_seeds = []
 results = []
 
 scored_data.sort(reverse=True)
-print(scored_data)
 
 for p_type, prompt in [("no-context", prompt_no_context), ("context", prompt_context)]: 
     print(f"{p_type}...")
@@ -275,22 +299,16 @@ for p_type, prompt in [("no-context", prompt_no_context), ("context", prompt_con
         frac = fracs[i]
         print(f"    {frac * 100}%...")
 
-        curr_seeds = []
         curr_res = []
-
         for run in range(5):
             y_pred = []
             y_actual = []
             print(f"        run {run + 1}")
 
-            if p_type == "no-context":
-                seed = rng.randint(0, 2**32 - 1)
-                curr_seeds.append(seed)
-            else:
-                seed = new_seeds[i]['Seed'][run]
+            seed = seeds['Seed'].iloc[i][run]
             icl_pairs = subset(scored_data, frac, seed)
             print(f"    examples: {len(icl_pairs)}")
-            fname = f'{p_type}_{frac}.csv'
+            fname = f'{p_type}_{frac}_{run + 1}.csv'
                         
             with open(os.path.join('resultsbest', fname), 'w') as f:
                 for img_path, label in test_data:
@@ -305,12 +323,14 @@ for p_type, prompt in [("no-context", prompt_no_context), ("context", prompt_con
                     ).to(model.device)
                     input_len = inputs["input_ids"].shape[-1]
 
-                    outputs = model.generate(**inputs, max_new_tokens=16)
-                    response = processor.decode(outputs[0][input_len:], skip_special_tokens=False)
+                    while(True):
+                        outputs = model.generate(**inputs, max_new_tokens=16)
+                        response = processor.decode(outputs[0][input_len:], skip_special_tokens=False)
 
-                    parsed = processor.parse_response(response)
-                    
-                    pred = parsed['content']
+                        parsed = processor.parse_response(response)
+                        pred = parsed['content']
+
+                        if pred == "HLB" or pred == "Healthy": break
 
                     print(f"Image: {img_path}, Prediction: {pred}, Result: {label}")
                     f.write(f"Image: {img_path}, Prediction: {pred}, Result: {label}\n")
@@ -320,24 +340,19 @@ for p_type, prompt in [("no-context", prompt_no_context), ("context", prompt_con
 
                     del messages, inputs, outputs, response
                     gc.collect()
-                    
-            curr_res.append(f1_score(y_actual, y_pred, pos_label='HLB'))
+            
+            f1 = f1_score(y_actual, y_pred, pos_label='HLB')
+            curr_res.append(f1)
+            print(f1)
 
         results.append({"Run": f"{p_type} {frac*100}%", "F1 Score": curr_res})
-
-        if p_type == "no-context":
-            new_seeds.append({"Percentage": f"{frac * 100}%", "Seed": curr_seeds})
-        
-df_seeds = pd.DataFrame(new_seeds)
-df_seeds['Seed'] = df_seeds['Seed'].apply(lambda x: f"[{' '.join(map(str, x))}]")
-df_seeds.to_csv('runseedsbw.csv', index=False)
 
 df = pd.DataFrame(results)
 df['F1 Score'] = df['F1 Score'].apply(lambda x: f"[{' '.join(map(str, x))}]")  # convert list to space separated instead of comma separated
 df.to_csv('iclbestf1.csv', index=False)
 
 # ================================
-# SAMPLE WORST EXAMPLES
+# SAMPLE WORST (HARDEST) EXAMPLES
 # ================================
 
 os.makedirs('resultsworst', exist_ok=True)
@@ -345,7 +360,6 @@ os.makedirs('resultsworst', exist_ok=True)
 results = []
 
 scored_data.sort()
-print(scored_data)
 
 for p_type, prompt in [("no-context", prompt_no_context), ("context", prompt_context)]: 
     print(f"{p_type}...")
@@ -355,16 +369,15 @@ for p_type, prompt in [("no-context", prompt_no_context), ("context", prompt_con
         print(f"    {frac * 100}%...")
 
         curr_res = []
-
         for run in range(5):
             y_pred = []
             y_actual = []
             print(f"        run {run + 1}")
 
-            seed = new_seeds[i]['Seed'][run]
+            seed = seeds['Seed'].iloc[i][run]
             icl_pairs = subset(scored_data, frac, seed)
             print(f"    examples: {len(icl_pairs)}")
-            fname = f'{p_type}_{frac}.csv'
+            fname = f'{p_type}_{frac}_{run + 1}.csv'
                         
             with open(os.path.join('resultsworst', fname), 'w') as f:
                 for img_path, label in test_data:
@@ -379,12 +392,14 @@ for p_type, prompt in [("no-context", prompt_no_context), ("context", prompt_con
                     ).to(model.device)
                     input_len = inputs["input_ids"].shape[-1]
 
-                    outputs = model.generate(**inputs, max_new_tokens=16)
-                    response = processor.decode(outputs[0][input_len:], skip_special_tokens=False)
+                    while(True):
+                        outputs = model.generate(**inputs, max_new_tokens=16)
+                        response = processor.decode(outputs[0][input_len:], skip_special_tokens=False)
 
-                    parsed = processor.parse_response(response)
-                    
-                    pred = parsed['content']
+                        parsed = processor.parse_response(response)
+                        pred = parsed['content']
+
+                        if pred == "HLB" or pred == "Healthy": break
 
                     print(f"Image: {img_path}, Prediction: {pred}, Result: {label}")
                     f.write(f"Image: {img_path}, Prediction: {pred}, Result: {label}\n")
@@ -395,7 +410,9 @@ for p_type, prompt in [("no-context", prompt_no_context), ("context", prompt_con
                     del messages, inputs, outputs, response
                     gc.collect()
 
-            curr_res.append(f1_score(y_actual, y_pred, pos_label='HLB'))
+            f1 = f1_score(y_actual, y_pred, pos_label='HLB')
+            curr_res.append(f1)
+            print(f1)
 
         results.append({"Run": f"{p_type} {frac*100}%", "F1 Score": curr_res})
 
